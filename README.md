@@ -1,183 +1,428 @@
-# ForestWatch AI: Global Tropical Forest & Tree-Cover Loss Monitoring Prototype
+# 🌳 ForestWatch AI
+### Global Satellite-Based Deforestation Detection and Forest Monitoring System
 
-> **Prototype Disclaimer**: ForestWatch AI is a multi-region tropical forest monitoring prototype designed for comparative algorithmic benchmarking (NDVI baseline vs. 6-band ResNet-34 U-Net) and spatial generalization research. It is **not** a globally validated operational system.
+ForestWatch AI is an AI-powered forest monitoring system that uses satellite imagery, deep learning, and geospatial analysis to detect forest cover changes and identify potential deforestation.
 
----
+The system uses **Sentinel-2 satellite imagery, a U-Net deep learning model, and Google Earth Engine** to analyze forest cover across different geographical regions.
 
-## 📌 Project Overview
-
-Tropical forests represent over 50% of the terrestrial carbon sink, yet face accelerating canopy reduction from agricultural expansion, road frontiers, and selective logging. Standard computer vision models trained on satellite imagery frequently suffer from severe performance degradation when deployed across different continents due to regional differences in canopy structure, soil reflectance, and atmospheric moisture. Furthermore, naive random tiling creates spatial data leakage between adjacent pixels, yielding artificially inflated accuracy scores.
-
-**ForestWatch AI** addresses these challenges with a rigorous, reproducible remote sensing pipeline:
-1. **Multi-Region Generalization**: Benchmarked across three distinct tropical forest biomes:
-   - **Amazon Rainforest** (Rondônia, Brazil): Fishbone deforestation frontiers and cattle pasture clearing.
-   - **Congo Basin** (Mai-Ndombe / Salonga, DRC): Humid evergreen forest subject to artisanal logging and slash-and-burn agriculture.
-   - **Southeast Asian Forests** (Central Kalimantan, Indonesia): Peat swamp and dipterocarp rainforest under oil palm expansion pressure.
-2. **Spatial Autocorrelation Leakage Prevention**: Enforces strict geographic block partitioning with a minimum **$2.56\,\text{km}$ (1 tile) spatial exclusion buffer** between training, validation, and test sets.
-3. **Harmonized 6-Band Multispectral Input**: Combines Sentinel-2 Level-2A surface reflectance across Visible, Near-Infrared, and Shortwave Infrared:
-   - **B2** (Blue, 490 nm, 10m)
-   - **B3** (Green, 560 nm, 10m)
-   - **B4** (Red, 665 nm, 10m)
-   - **B8** (NIR, 842 nm, 10m)
-   - **B11** (SWIR-1, 1610 nm, 20m resampled to 10m)
-   - **B12** (SWIR-2, 2190 nm, 20m resampled to 10m)
-4. **Data Quality & SCL Masking**: Eliminates clouds, cloud shadows, and cirrus via Sentinel-2 Scene Classification Layer (SCL) filtering and dry-season median compositing.
-5. **Noisy Pseudo-Label Handling**: Treats Google Dynamic World `trees` class predictions as automated pseudo-labels, explicitly evaluating error modes (plantations, riparian corridors, shadow terrain).
-6. **Geodetically Accurate Tree-Cover Loss**: Employs connected-component analysis with a configurable minimum patch threshold (default $0.5\,\text{ha}$ / $\sim 50$ pixels) and ellipsoidal geodesic area computation. Changes are strictly described as **tree-cover loss** rather than unverified definitive land-use conversion.
+It includes an interactive Streamlit dashboard to visualize satellite imagery, forest cover predictions, deforestation estimates, and forest gain.
 
 ---
 
-## 🗺️ System Architecture
+## 🌍 Project Overview
 
-```mermaid
-flowchart TD
-    subgraph Data Acquisition & Quality
-        S2["Sentinel-2 L2A (B2, B3, B4, B8, B11, B12)"] --> SCL["SCL Cloud & Shadow Masking"]
-        DW["Dynamic World V1 ('trees' class)"] --> DW_PL["Pseudo-Label Alignment & Reprojection"]
-        SCL --> Comp["Dry-Season Median Composite (T1 & T2)"]
-        DW_PL --> Grid["Identical CRS, Resolution (10m) & Grid Bounds"]
-        Comp --> Grid
-    end
+Deforestation is a major environmental challenge that contributes to biodiversity loss, climate change, and ecosystem degradation.
 
-    subgraph Spatial Partitioning & Prevention of Leakage
-        Grid --> Tiler["256x256 Spatial Window Tiling"]
-        Tiler --> BlockSplit{"Geographic Block Split + Buffer Zone"}
-        BlockSplit -->|"West Block (70%)"| TrainSet["Training Set"]
-        BlockSplit -->|"Spatial Exclusion Zone (>=2.56 km)"| Discarded["Buffer (Excluded)"]
-        BlockSplit -->|"Central Block (15%)"| ValSet["Validation Set"]
-        BlockSplit -->|"East Block (15%)"| TestSet["Held-Out Spatial Test Set"]
-    end
+Traditional forest monitoring methods often require extensive manual analysis and may not provide timely information about changes in forest cover.
 
-    subgraph Modeling & Benchmarking
-        TestSet --> NDVI["NDVI Baseline Thresholding: (B8-B4)/(B8+B4) > 0.60"]
-        TrainSet --> UNet["ResNet-34 U-Net (6-Channel Adapted First Conv)"]
-        ValSet --> UNet
-        UNet --> Preds["Predicted Forest Masks (T1 & T2)"]
-    end
+ForestWatch AI addresses this challenge by combining satellite-based remote sensing with deep learning to automate forest cover classification and change detection.
 
-    subgraph Change Detection & Visualization
-        Preds --> Diff["Tree-Cover Loss: Forest(T1) AND NOT Forest(T2) AND Valid(T1,T2)"]
-        Diff --> Filter["Connected Components Filtering (>= 0.5 ha)"]
-        Filter --> Geodesic["Ellipsoidal Geodesic Ground Area (ha)"]
-        Geodesic --> Map["Interactive Folium Map + Vector Loss Polygons"]
-    end
-```
+### Key Objectives
+
+- Detect forest and non-forest regions from satellite imagery.
+- Monitor forest cover changes across different years.
+- Identify potential deforestation and forest gain areas.
+- Support monitoring across different geographical locations.
+- Visualize results through an interactive dashboard.
 
 ---
 
-## 📁 Repository Layout
+## ✨ Key Features
+
+- **Satellite Image Processing:** Processes multispectral Sentinel-2 imagery.
+- **AI-Based Forest Classification:** Uses a U-Net model to classify forest and non-forest pixels.
+- **Deforestation Detection:** Compares forest masks from different years to identify potential tree-cover loss.
+- **Forest Gain Monitoring:** Identifies areas showing potential forest gain.
+- **Dynamic Geographic Selection:** Supports location-based analysis using geocoding and ecological boundaries.
+- **Google Earth Engine Integration:** Retrieves satellite imagery and Dynamic World labels.
+- **Interactive Dashboard:** Displays maps, statistics, charts, and downloadable results.
+- **Spatial Analysis:** Uses geospatial processing to maintain raster alignment and analyze geographical regions.
+
+---
+
+## 🏗️ System Architecture
+
+The project follows a satellite-data-to-dashboard processing pipeline.
 
 ```text
-deforestation/
-├── configs/
-│   ├── config.yaml                      # Global pipeline parameters (seed, patch size, loss weights)
-│   └── regions.yaml                     # Multi-region definitions (Amazon, Congo, SE Asia)
-├── data/                                # Git-ignored data directory
-│   ├── raw/                             # Downloaded Sentinel-2 GeoTIFFs & Dynamic World masks
-│   ├── tiles/                           # 256x256 image & mask tiles partitioned by region and spatial split
-│   ├── synthetic/                       # Isolated synthetic rasters for local verification
-│   └── outputs/                         # Change maps, GeoJSON polygons, interactive maps, metrics CSV
-├── notebooks/
-│   ├── 01_gee_data_export.ipynb         # Earth Engine query, SCL masking, and multi-region export walk-through
-│   └── 02_colab_train_pipeline.ipynb   # Google Colab / Kaggle 1-click cloud GPU training & visualization
-├── src/
-│   ├── __init__.py
-│   ├── config.py                        # YAML configuration loader and Pydantic schema validation
-│   ├── gee_export.py                    # GEE multi-region export script (SCL cloud masking, median composite)
-│   ├── mock_data.py                     # Synthetic 6-band multispectral raster & mask generator
-│   ├── alignment.py                     # Raster alignment, CRS reprojection, affine matching, nodata handling
-│   ├── tiling.py                        # Spatial window slicing with geographic block splits & buffer zones
-│   ├── dataset.py                       # PyTorch Dataset, nodata masking, and spectral-safe augmentations
-│   ├── baseline.py                      # Multi-threshold NDVI baseline evaluation & metric computation
-│   ├── model.py                         # 6-channel ResNet-34 U-Net + combined Masked-BCE + Masked-Dice loss
-│   ├── train.py                         # Training pipeline with early stopping, checkpointing, and logging
-│   ├── evaluate.py                      # Per-region test evaluation, confusion matrices, worst-tile error analysis
-│   ├── change_detection.py              # Multi-temporal tree-cover loss with geodetic hectare area filtering
-│   └── visualize.py                     # Interactive Folium/Leafmap generator with layer controls & loss polygons
-├── tests/
-│   ├── test_config.py                   # Configuration schema and Pydantic validation tests
-│   ├── test_alignment.py                # Tests raster dimension, CRS, affine transform, and grid alignment
-│   ├── test_nodata.py                   # Tests nodata mask propagation through loss and metrics
-│   ├── test_spatial_split.py            # Tests spatial block separation and zero-overlap buffer compliance
-│   ├── test_area_calc.py                # Tests geodetic ground area calculation (projected UTM vs EPSG:4326)
-│   ├── test_change_detection.py         # Tests multi-temporal differencing and minimum hectare patch filtering
-│   └── test_metrics.py                  # Tests IoU, Dice/F1, Precision, Recall on edge cases
-├── .gitignore                           # Git ignore for data/, weights, caches, .env
-├── requirements.txt                     # Dependencies: torch, rasterio, segmentation-models-pytorch, etc.
-└── README.md                            # Recruiter-facing portfolio README
+          Geographic Location
+                  |
+                  v
+       Geocoding and Region Selection
+                  |
+                  v
+         Google Earth Engine
+                  |
+                  v
+       Sentinel-2 Satellite Imagery
+                  |
+                  v
+       Preprocessing and Tiling
+                  |
+                  v
+          U-Net Deep Learning
+             Model
+                  |
+                  v
+        Forest / Non-Forest Masks
+                  |
+                  v
+         Multi-Year Comparison
+                  |
+                  v
+       Deforestation and Forest Gain
+               Detection
+                  |
+                  v
+        Geospatial Output Generation
+                  |
+                  v
+         Streamlit Dashboard
+```
+
+### Processing Workflow
+
+1. **Location Selection:** The user selects a geographical region for monitoring.
+2. **Data Acquisition:** Sentinel-2 satellite imagery is retrieved using Google Earth Engine.
+3. **Preprocessing:** Images are processed, normalized, and divided into manageable tiles.
+4. **Forest Classification:** The trained U-Net model predicts forest and non-forest regions.
+5. **Change Detection:** Predictions from two different years are compared.
+6. **Visualization:** Generated maps and statistical summaries are displayed through Streamlit.
+
+---
+
+## 🛰️ Technology Stack
+
+| Category | Technologies |
+|---|---|
+| Programming Language | Python |
+| Deep Learning | PyTorch |
+| Segmentation Architecture | U-Net |
+| Encoder | ResNet34 |
+| Segmentation Library | Segmentation Models PyTorch |
+| Satellite Imagery | Sentinel-2 |
+| Satellite Data Platform | Google Earth Engine |
+| Reference Labels | Dynamic World |
+| Geospatial Processing | Rasterio, GeoPandas, Shapely, PyProj |
+| Image Processing | NumPy |
+| Geographic Search | Geopy, Nominatim |
+| Visualization | Streamlit |
+| Charts | Plotly |
+| Testing | Pytest |
+| Version Control | Git and GitHub |
+
+---
+
+## 🤖 Deep Learning Model
+
+ForestWatch AI uses a **U-Net semantic segmentation architecture with a ResNet34 encoder**.
+
+### Why U-Net?
+
+U-Net is designed for pixel-level image segmentation. It is suitable for identifying spatial features such as forest boundaries and vegetation patterns in satellite imagery.
+
+### Model Architecture
+
+- Architecture: U-Net
+- Encoder: ResNet34
+- Framework: PyTorch
+- Input: Six-band Sentinel-2 imagery
+- Output: Binary forest/non-forest segmentation mask
+
+### Sentinel-2 Input Bands
+
+The model uses six spectral bands:
+
+| Band | Description |
+|---|---|
+| B2 | Blue |
+| B3 | Green |
+| B4 | Red |
+| B8 | Near Infrared |
+| B11 | Short-Wave Infrared |
+| B12 | Short-Wave Infrared |
+
+These bands provide spectral information useful for distinguishing vegetation and other land-cover types.
+
+### Training Data
+
+The model was trained using satellite imagery from the Amazon region of Brazil.
+
+Dynamic World forest/non-forest classifications were used as pseudo-labels for model training.
+
+The dataset was divided using spatially separated training, validation, and testing regions to reduce spatial leakage.
+
+---
+
+## 📊 Results and Performance
+
+### Amazon Brazil – Model Evaluation
+
+The model was evaluated on a held-out test set using Dynamic World pseudo-labels.
+
+| Metric | Result |
+|---|---:|
+| Validation IoU | 0.9509 |
+| Test IoU | 0.9717 |
+| Dice Score | 0.9857 |
+| Precision | 0.9905 |
+| Recall | 0.9808 |
+
+**Important:** These metrics measure agreement with held-out Dynamic World pseudo-labels. They should not be interpreted as independently verified ground-truth accuracy.
+
+### Amazon Brazil – Change Detection (2020–2023)
+
+| Classification | Area |
+|---|---:|
+| Stable Non-Forest | 343,246.80 ha |
+| Stable Forest | 216,460.68 ha |
+| Potential Tree-Cover Loss | 16,595.71 ha |
+| Potential Forest Gain | 7,920.65 ha |
+
+Valid monitored area: approximately 584,223.84 hectares.
+
+### Western Ghats, India – Pilot Analysis
+
+A separate pilot analysis was conducted using satellite imagery from 2020 and 2023.
+
+| Classification | Area |
+|---|---:|
+| Stable Non-Forest | 80.41 ha |
+| Stable Forest | 1,048.56 ha |
+| Potential Tree-Cover Loss | 45.37 ha |
+| Potential Forest Gain | 85.53 ha |
+| NoData | 348.13 ha |
+
+Valid monitored area: approximately 1,259.87 hectares.
+
+The Western Ghats pilot demonstrates the experimental application of the Amazon-trained model to another geographical region.
+
+**Scientific limitation:** The Western Ghats results are experimental model-based estimates. The model was trained on Amazon imagery using Dynamic World pseudo-labels and has not been independently validated for the Western Ghats. The NoData area is excluded from valid change estimates.
+
+---
+
+## 📸 Dashboard Screenshots
+
+The Streamlit dashboard provides five main sections:
+
+1. Overview
+2. Satellite Imagery
+3. Change Detection
+4. AI Model Insights
+5. Methodology
+
+Add your actual dashboard screenshots in the `screenshots/` directory.
+
+Suggested screenshot organization:
+
+```text
+screenshots/
+├── overview.png
+├── satellite-imagery.png
+├── change-detection.png
+├── model-insights.png
+└── methodology.png
+```
+
+Example Markdown for displaying screenshots:
+
+```markdown
+![ForestWatch AI Dashboard](screenshots/overview.png)
+
+![Change Detection](screenshots/change-detection.png)
+
+![AI Model Insights](screenshots/model-insights.png)
 ```
 
 ---
 
-## 🔬 Benchmark Results
+## ⚙️ Installation and Setup
 
-> **Reporting Integrity**: Performance metrics below are reported separately for each geographic test region on the held-out spatial test block. In accordance with honest evaluation practices, numbers represent actual test runs; placeholders remain marked until benchmark execution.
+### Prerequisites
 
-| Region | Model | Forest IoU | Forest Dice / F1 | Precision | Recall | Tree-Cover Loss (ha) | Data Source |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Amazon Rainforest** (Brazil) | NDVI Baseline ($\tau=0.60$) | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | Real Satellite |
-| **Amazon Rainforest** (Brazil) | ResNet-34 U-Net (6-band) | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | Real Satellite |
-| **Congo Basin** (DRC) | NDVI Baseline ($\tau=0.60$) | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | Real Satellite |
-| **Congo Basin** (DRC) | ResNet-34 U-Net (6-band) | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | Real Satellite |
-| **SE Asian Forests** (Indonesia) | NDVI Baseline ($\tau=0.60$) | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | Real Satellite |
-| **SE Asian Forests** (Indonesia) | ResNet-34 U-Net (6-band) | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | *[Run test]* | Real Satellite |
+- Python 3.10 or later
+- Git
+- VS Code or another Python IDE
+- Google Earth Engine account (for live satellite data acquisition)
 
-*All runs write directly to `data/outputs/experiments.csv` to ensure complete auditability.*
-
----
-
-## 🚀 Setup & Execution Guide
-
-### 1. Local Environment Setup
+### 1. Clone the Repository
 
 ```bash
-# Clone repository
-git clone https://github.com/your-username/deforestation.git
-cd deforestation
+git clone https://github.com/SaikrupaReddy111/ForestWatch-AI.git
+```
 
-# Create and activate virtual environment
+### 2. Navigate to the Project
+
+```bash
+cd ForestWatch-AI
+```
+
+### 3. Create a Virtual Environment
+
+```bash
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
+```
 
-# Install dependencies
+Activate it on Windows:
+
+```powershell
+.venv\Scripts\activate
+```
+
+### 4. Install Dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 2. Run Test Suite
+### 5. Launch the Dashboard
 
 ```bash
-# Run all unit tests
-python -m pytest tests/ -v
+python -m streamlit run app.py
 ```
 
-### 3. Adding New Study Regions
+The dashboard will open in your browser.
 
-New regions can be configured purely via `configs/regions.yaml` without changing any Python code:
-```yaml
-regions:
-  my_new_region:
-    region_id: "my_new_region"
-    name: "Region Name"
-    continent: "Continent"
-    country: "Country"
-    bbox: [west_lon, south_lat, east_lon, north_lat]
-    dry_season:
-      start_month: 6
-      start_day: 1
-      end_month: 8
-      end_day: 31
-    target_years:
-      t1: 2020
-      t2: 2023
-    projected_utm_crs: "EPSG:326XX"
-    equal_area_crs: "ESRI:54034"
+---
+
+## 🛰️ Google Earth Engine Configuration
+
+To retrieve new satellite imagery, configure Google Earth Engine authentication.
+
+Install the Earth Engine API if it is not already installed:
+
+```bash
+pip install earthengine-api
+```
+
+Authenticate:
+
+```bash
+earthengine authenticate
+```
+
+Initialize using your Google Cloud project:
+
+```python
+import ee
+
+ee.Initialize(project="YOUR_GOOGLE_CLOUD_PROJECT_ID")
+```
+
+Replace the project ID with your configured Google Cloud project.
+
+---
+
+## 📁 Project Structure
+
+```text
+ForestWatch-AI/
+│
+├── app.py
+├── README.md
+├── requirements.txt
+├── .gitignore
+│
+├── configs/
+│   ├── config.yaml
+│   └── regions.yaml
+│
+├── src/
+│   ├── alignment.py
+│   ├── change_detection.py
+│   ├── config.py
+│   ├── dataset.py
+│   ├── evaluate.py
+│   ├── forest_mask.py
+│   ├── gee_export.py
+│   ├── geocoder.py
+│   ├── mock_data.py
+│   ├── model.py
+│   ├── ndvi.py
+│   ├── pilot_export.py
+│   ├── predict.py
+│   ├── tiling.py
+│   └── train.py
+│
+├── tests/
+│   ├── test_alignment.py
+│   ├── test_change_detection.py
+│   ├── test_config.py
+│   ├── test_dataset.py
+│   ├── test_evaluate.py
+│   ├── test_forest_mask.py
+│   ├── test_gee_export.py
+│   ├── test_mock_data.py
+│   ├── test_model.py
+│   ├── test_ndvi.py
+│   ├── test_predict.py
+│   ├── test_tiling.py
+│   └── test_train.py
+│
+├── data/
+│   ├── raw/
+│   ├── synthetic/
+│   ├── tiles/
+│   └── outputs/
+│
+└── screenshots/
+```
+
+Large satellite datasets, generated raster outputs, and model checkpoints are excluded from the Git repository.
+
+---
+
+## 🧪 Testing
+
+The project includes automated tests using Pytest.
+
+Run the test suite:
+
+```bash
+python -m pytest tests/ -v
 ```
 
 ---
 
-## 💼 Resume Line Template
+## 🚀 Future Enhancements
 
-> "Engineered **ForestWatch AI**, a multi-region tropical forest monitoring prototype across Amazon, Congo, and SE Asia biomes, training a 6-band ResNet-34 U-Net on Sentinel-2 imagery that achieved **X% IoU** (vs. **Y%** for NDVI baseline) with spatial-leakage-free block validation and geodetic change detection mapping **Z hectares** of tree-cover loss."
+- Extend monitoring to more geographical regions.
+- Improve cross-region model generalization.
+- Validate predictions using independently verified ground-truth datasets.
+- Integrate additional satellite sources such as Landsat.
+- Introduce near-real-time forest monitoring.
+- Improve cloud and shadow handling.
+- Add automated alerts for significant forest-cover changes.
+- Explore temporal deep learning architectures for long-term forest monitoring.
+
+---
+
+## ⚠️ Limitations
+
+- Dynamic World labels are pseudo-labels and may contain classification errors.
+- Model evaluation metrics represent agreement with pseudo-labels rather than independent ground truth.
+- Cross-region predictions require additional validation.
+- Satellite image quality and NoData regions can affect monitoring coverage.
+- Detected tree-cover loss is a potential change signal and does not independently establish human-caused deforestation.
+
+---
+
+## 🌱 Conclusion
+
+ForestWatch AI demonstrates how satellite remote sensing, deep learning, and geospatial analysis can be combined to build an automated forest monitoring system.
+
+By integrating U-Net-based image segmentation, multi-year change detection, Google Earth Engine, and interactive visualization, the system provides an extensible foundation for monitoring forest-cover changes across geographical regions.
+
+---
+
+## 👩‍💻 Author
+
+**Sai Krupa Reddy**
+
+GitHub: [@SaikrupaReddy111](https://github.com/SaikrupaReddy111)
+
+Project: [ForestWatch AI](https://github.com/SaikrupaReddy111/ForestWatch-AI)
+
+---
+
+*Built with Python, PyTorch, Sentinel-2, Google Earth Engine, and Streamlit.*
