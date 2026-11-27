@@ -1,0 +1,55 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ForestWatch AI Data & Artifacts (Ignore heavy datasets and model weights)
+data/raw/*
+!data/raw/.gitkeep
+data/tiles/*
+!data/tiles/.gitkeep
+data/synthetic/*
+!data/synthetic/.gitkeep
+data/outputs/*
+!data/outputs/.gitkeep
+!data/outputs/experiments.csv
+
+# Model checkpoints
+*.pth
+*.pt
+*.onnx
+
+# Earth Engine credentials / Secrets
+.env
+*.credentials
+
+# Temporary raster processing files
+*.dat
+
+
+# Temporary debugging and backup files
+.scratch/
+scratch/
+*backup*.py

@@ -1,0 +1,112 @@
+# ForestWatch AI: Master Pipeline Configuration
+# Multi-region tropical forest monitoring prototype
+
+project_name: "ForestWatch AI"
+prototype_disclaimer: >
+  ForestWatch AI is a multi-region tropical forest monitoring prototype designed
+  for algorithmic experimentation and comparative benchmarking, not a globally
+  validated operational system.
+
+# Global random seed for full reproducibility across NumPy, PyTorch, and Python random
+seed: 42
+
+# Directory paths for data stages and outputs
+paths:
+  raw_dir: "data/raw"
+  tiles_dir: "data/tiles"
+  synthetic_dir: "data/synthetic"
+  outputs_dir: "data/outputs"
+  models_dir: "data/outputs/models"
+  reports_dir: "data/outputs/reports"
+  experiments_csv: "data/outputs/experiments.csv"
+
+# Satellite and raster specifications
+data:
+  sentinel2_bands: ["B2", "B3", "B4", "B8", "B11", "B12"]
+  band_descriptions:
+    B2: "Blue (490 nm)"
+    B3: "Green (560 nm)"
+    B4: "Red (665 nm)"
+    B8: "Near-Infrared (842 nm)"
+    B11: "SWIR-1 (1610 nm)"
+    B12: "SWIR-2 (2190 nm)"
+  target_resolution_meters: 10.0
+  tile_size: 256
+  nodata_value: -9999.0
+  mask_nodata_value: 255
+  # Scene Classification Layer (SCL) classes to mask out:
+  # 3: Cloud shadow, 8: Cloud medium prob, 9: Cloud high prob, 10: Cirrus, 11: Snow/Ice
+  scl_mask_classes: [3, 8, 9, 10, 11]
+  dynamic_world_collection: "GOOGLE/DYNAMICWORLD/V1"
+  dynamic_world_tree_class_index: 1 # 'trees' label in Dynamic World
+  pseudo_label_confidence_threshold: 0.50
+
+# Spatial data splitting configuration
+splitting:
+  strategy: "spatial_block" # Options: "spatial_block", "leave_one_region_out"
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  # Minimum number of 256x256 tiles to leave as a buffer between splits (prevents edge leakage)
+  buffer_tiles: 1
+
+# NDVI Baseline configuration
+baseline:
+  nir_band: "B8"
+  red_band: "B4"
+  epsilon: 0.000001
+  default_threshold: 0.60
+  threshold_tuning_range: [0.45, 0.75, 0.05]
+
+# U-Net Model configuration
+model:
+  architecture: "unet"
+  encoder_name: "resnet34"
+  encoder_weights: "imagenet"
+  in_channels: 6
+  num_classes: 1
+  activation: null # null outputs raw logits for BCEWithLogitsLoss
+  # Explicit first convolution weight initialization strategy:
+  # 'channel_mapping_and_average':
+  # B4(Red)->weight[:, 0], B3(Green)->weight[:, 1], B2(Blue)->weight[:, 2],
+  # B8(NIR), B11(SWIR1), B12(SWIR2)->mean(weight[:, 0:3])
+  first_conv_init: "channel_mapping_and_average"
+
+# Training hyperparameters
+training:
+  batch_size: 16
+  num_epochs: 30
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  loss_weights:
+    bce: 0.50
+    dice: 0.50
+  scheduler:
+    name: "cosine"
+    t_max: 30
+    eta_min: 0.000001
+  early_stopping:
+    enabled: true
+    patience: 7
+    monitor: "val_iou"
+    mode: "max"
+
+# Multi-temporal Tree-Cover Loss & Area Calculation
+change_detection:
+  # Minimum patch size in hectares to filter out edge misregistration noise
+  min_patch_size_ha: 0.50
+  # Morphological connectivity (4 or 8)
+  connectivity: 8
+  # Only count change where both T1 and T2 have valid, non-cloudy, non-nodata observations
+  require_dual_validity: true
+  # Area calculation method:
+  # 'projected_equal_area': Reprojects to equal-area CRS or uses UTM pixel transform determinant
+  # 'ellipsoidal_geodesic': Computes true WGS84 ellipsoidal polygon area via PyProj/Shapely Geod
+  area_calculation_method: "ellipsoidal_geodesic"
+  # Standardized scientific terminology
+  loss_event_label: "tree_cover_loss"
+
+# Evaluation and Reporting
+evaluation:
+  metrics: ["iou", "dice", "precision", "recall"]
+  error_analysis_top_k_tiles: 5
