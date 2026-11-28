@@ -1,0 +1,22 @@
+{
+  "region": "Western Ghats pilot area",
+  "period": "2020-2023",
+  "method": "Experimental U-Net prediction comparison",
+  "pixel_area_m2": 100.0,
+  "minimum_patch_ha": 0.5,
+  "pixel_counts": {
+    "stable_non_forest": 8041,
+    "stable_forest": 104856,
+    "potential_tree_cover_loss": 4537,
+    "potential_forest_gain": 8553,
+    "invalid_pixels": 34813
+  },
+  "areas_hectares": {
+    "stable_forest_ha": 1048.56,
+    "potential_tree_cover_loss_ha": 45.37,
+    "potential_forest_gain_ha": 85.53,
+    "valid_monitored_area_ha": 1259.87
+  },
+  "change_map": "data\\outputs\\western_ghats_pilot_change_2020_2023.tif",
+  "scientific_note": "Experimental model-based change estimates. The U-Net was trained on Amazon Brazil data using Dynamic World pseudo-labels and applied to a Western Ghats pilot area. These results are not independently validated ground-truth deforestation measurements."
+}

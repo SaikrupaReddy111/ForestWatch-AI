@@ -1,0 +1,22 @@
+{
+  "region": "Amazon Brazil",
+  "period": "2020-2023",
+  "method": "U-Net prediction comparison",
+  "pixel_area_m2": 100.0,
+  "minimum_patch_ha": 0.5,
+  "pixel_counts": {
+    "stable_non_forest": 34324680,
+    "stable_forest": 21646068,
+    "potential_tree_cover_loss": 1659571,
+    "potential_forest_gain": 792065,
+    "invalid_pixels": 0
+  },
+  "areas_hectares": {
+    "stable_forest_ha": 216460.68,
+    "potential_tree_cover_loss_ha": 16595.71,
+    "potential_forest_gain_ha": 7920.65,
+    "valid_monitored_area_ha": 584223.84
+  },
+  "change_map": "data\\outputs\\amazon_brazil_deforestation_change_2020_2023.tif",
+  "scientific_note": "Potential tree-cover loss is a model-based estimate derived from U-Net predictions trained with Dynamic World pseudo-labels. It is not independently validated ground-truth deforestation."
+}
